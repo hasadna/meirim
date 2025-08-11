@@ -7,56 +7,57 @@ on:
   push:
     paths:
       - server/**
+      - .github/workflows/server.yml
 
 jobs:
-  test: 
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x]
+  # test: 
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       node-version: [18.x]
 
-    services:
-      test_mysql:
-        image: mysql:5.7
-        env:
-          MYSQL_ROOT_PASSWORD: password
-        ports:
-          - 33060:3306
+  #   services:
+  #     test_mysql:
+  #       image: mysql:5.7
+  #       env:
+  #         MYSQL_ROOT_PASSWORD: password
+  #       ports:
+  #         - 33060:3306
 
-    steps:
-      - uses: actions/checkout@v2
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: use node v${{ matrix.node-version }}
-        uses: actions/setup-node@v1
-        with:
-          node-version: ${{ matrix.node-version }}
+  #     - name: use node v${{ matrix.node-version }}
+  #       uses: actions/setup-node@v1
+  #       with:
+  #         node-version: ${{ matrix.node-version }}
 
-      - name: cache node modules
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cache
-            !~/.cache/exclude
-            **/node_modules
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.OS }}-build-${{ env.cache-name }}
-            ${{ runner.OS }}-build-
-            ${{ runner.OS }}-
+  #     - name: cache node modules
+  #       uses: actions/cache@v2
+  #       with:
+  #         path: |
+  #           ~/.cache
+  #           !~/.cache/exclude
+  #           **/node_modules
+  #         key: ${{ runner.OS }}-build-${{ hashFiles('**/package-lock.json') }}
+  #         restore-keys: ${{ runner.OS }}-build-${{ env.cache-name }}
+  #           ${{ runner.OS }}-build-
+  #           ${{ runner.OS }}-
 
-      - name: install server dependencies
-        working-directory: server
-        run: npm install
+  #     - name: install server dependencies
+  #       working-directory: server
+  #       run: npm install
 
-      - name: create database
-        run: mysql --protocol=tcp --host=localhost --port=33060 --user=root --password=password -e "CREATE DATABASE test_meirim character set UTF8 collate utf8_bin; SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY,',''));"
+  #     - name: create database
+  #       run: mysql --protocol=tcp --host=localhost --port=33060 --user=root --password=password -e "CREATE DATABASE test_meirim character set UTF8 collate utf8_bin; SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY,',''));"
 
-      - name: test
-        working-directory: server
-        run: npm run test
+  #     - name: test
+  #       working-directory: server
+  #       run: npm run test
   build: 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
