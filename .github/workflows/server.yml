@@ -1,7 +1,7 @@
 name: Server CI
 
 env:
-  IMAGE: ghcr.io/hasadna/open-bus-rides-history
+  IMAGE: ghcr.io/hasadna/meirim/meirim-server
 
 on:
   push:
