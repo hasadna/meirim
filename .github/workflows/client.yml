@@ -148,7 +148,7 @@ jobs:
         env:
           PUBLIC_URL: "https://meirim.org"
           NODE_ENV: production
-          REACT_APP_BASE_API_URL: https://meirim-server.rke2.hasadna.org.il/api
+          REACT_APP_BASE_API_URL: https://api.meirim.org/api
 
       - uses: actions/upload-artifact@v4
         with:
