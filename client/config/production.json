@@ -1,6 +1,6 @@
 {
     "axios": {
-        "baseURL": "https://api.meirim.org/api",
+        "baseURL": "https://meirim-server.rke2.hasadna.org.il/api",
         "withCredentials": true
     }
 }
