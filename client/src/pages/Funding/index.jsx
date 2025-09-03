@@ -124,7 +124,11 @@ const FundingPage = ({ ...props }) => {
 						<SC.SectionTitle>{t.fundingSectionTitle}</SC.SectionTitle>
 						<TabPanel>
 							<SC.FundingStatsWrapper>
-								<SC.CentredSubTitle> <bold>{statsData.count.toLocaleString('en')} </bold>תומכים כבר עוזרים לזה לקרות</SC.CentredSubTitle>
+                                <SC.CentredSubTitle> <bold>
+								מתנצלים, יש תקלה בשירות התשלומים. נשמח אם תנסו שוב במועד מאוחר יותר
+                                </bold></SC.CentredSubTitle>
+
+                                {/*<SC.CentredSubTitle> <bold>{statsData.count.toLocaleString('en')} </bold>תומכים כבר עוזרים לזה לקרות</SC.CentredSubTitle>*/}
 								{/* <div>
 									<ProgressBar id="funding-stats-progressbar" value={statsData.totalAmount / fundingEndGoal * 100} width="100%"/>
 								</div> */}
@@ -153,7 +157,7 @@ const FundingPage = ({ ...props }) => {
 									</SC.FundingStatsNumberWrapper>
 								</SC.FundingStatsNumbersWrapper> */}
 							</SC.FundingStatsWrapper>
-							<SC.PaymentTypeButtonsWrapper ref={paymentRef}>
+                            {/*<SC.PaymentTypeButtonsWrapper ref={paymentRef}>
 								<SC.PaymentTypeButton side="right" selected={monthlyPayment} onClick={() => { setMonthlyPayment(true); }}>
 									<Typography component="span" variant="planTitle" mobileVariant="cardTitle" color={theme.palette.primary['main']}>
 										{t.monthlyPayment}
@@ -210,7 +214,7 @@ const FundingPage = ({ ...props }) => {
 							</SC.TermsOfUseWrapper>
 							<SC.ButtonWrapper>
 								<Button id="payment-button" text={monthlyPayment? t.startMonthlyPayment: t.singleTimePayment} onClick={ handlePaymentRequest }/>
-							</SC.ButtonWrapper>
+							</SC.ButtonWrapper>*/}
 						</TabPanel>
 					</SC.PaymentWrapper>
 				</SC.InputsWrapper>
