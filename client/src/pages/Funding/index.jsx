@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useTheme } from '@material-ui/styles';
 import { useTranslation } from 'locale/he_IL';
 import React, { useCallback, useRef, useState } from 'react';
