@@ -3,6 +3,10 @@ name: Client CI
 env:
   IMAGE: ghcr.io/hasadna/meirim/meirim-client
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   push:
     paths:
