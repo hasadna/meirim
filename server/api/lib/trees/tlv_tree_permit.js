@@ -1,7 +1,7 @@
-const proxy = require('./../proxy');
-const cheerio = require('cheerio');
 const Config = require('../../lib/config');
 const TreePermit = require('../../model/tree_permit');
+const puppeteer = require('puppeteer');
+
 const {
 	REGIONAL_OFFICE, PERMIT_NUMBER, APPROVER_TITLE, ACTION,
 	LAST_DATE_TO_OBJECTION, TOTAL_TREES,
@@ -34,43 +34,7 @@ const tlvTreePermit = {
 };
 
 async function parseTreesHtml(url) {
-	const treesHtml = await proxy.get(url);
-	const dom = cheerio.load(treesHtml, {
-		decodeEntities: false
-	});
-	if (!dom) {
-		console.error('cheerio dom is null');
-	}
-	const result = [];
-
-	const rawRows = dom('.table-scrl').find('tr');
-	//ignore row 0
-	for (let i = 1; i < rawRows.length; i = i+2) {
-		const permit = {};
-		permit.permitNumber = dom(rawRows[i]).attr('title');
-		dom(rawRows[i]).find('td').each((idx,elem) => {				
-			const val = dom(elem).text().trim();
-			if (idx == 0) {
-				permit[LICENSE_NUMBER] = val;
-			}
-			if (idx == 1) {
-				permit[STREET_NAME] = val;
-			}
-			if (idx == 2) {
-				permit[ACTION] = val;
-			}   
-		});
-
-
-		dom(rawRows[i+1]).find('td > div > div').each((idx,elem) => {				
-			const key = dom(elem).find('div h5').text().trim();
-			const value = dom(elem).find('div span').text().trim();
-			permit[key] = value;     
-		});
-
-		console.log(`tree permit tlv: ${Object.entries(permit)}`);
-		result.push(permit);
-	}
+	const result = await scrapeTelAvivTreesRawRows(url);
 	Log.info(`number of Tel Aviv permits: ${result.length}`);
 	return result;
 }
@@ -104,14 +68,13 @@ function processRawPermits(rawPermits) {
 					[REASON_DETAILED]: raw[LICENSE_REASON],
 					[TREES_PER_PERMIT]: treesPerPermit,
 					[TOTAL_TREES]: totalTrees,
-
 					[TREE_PERMIT_URL]: TREES_TEL_AVIV_URL,
 				};
 				const permit = new TreePermit(attributes);
 				return permit;
 			}
 			catch (e) {
-				Log.error(`error in hod hasharon parse row, ignoring: ${raw[STREET_NAME]}`, e.message);
+				Log.error(`error in Tel Aviv parse row, ignoring: ${raw[STREET_NAME]}`, e.message);
 				return null;
 			}
 		}
@@ -155,7 +118,7 @@ function sum(treeArray) {
  */
 async function crawlTLVTrees(url, permitType) {
 	try {
-		const raw = await parseTreesHtml(url);
+		const raw = await parseTreesHtml(TREES_TEL_AVIV_URL);
 		const treePermits = processRawPermits(raw);
 		return treePermits;
 	}
@@ -163,5 +126,150 @@ async function crawlTLVTrees(url, permitType) {
 		Log.error(e.message);
 	}
 }
+
+
+async function scrapeTelAvivTreesRawRows(url) {
+	let browser;
+	try {
+	  // Launch browser
+	  Log.info('Launching browser...');
+	  browser = await puppeteer.launch({ 
+		headless: true,
+		args: ['--no-sandbox']
+	  });
+	  
+	  const page = await browser.newPage();
+	   // Listen to console messages from the page
+	//   page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+	  
+	  // Navigate to the page
+	  Log.info('Loading page...');
+	  await page.goto(url, {
+		waitUntil: 'networkidle2',
+		timeout: 50000
+	  });
+	  
+	  // Wait for tables to appear
+	  Log.info('Waiting for content to load...');
+	  await page.waitForSelector('table', { timeout: 10000 });
+	  
+	  // Additional wait using Promise
+	  await new Promise(resolve => setTimeout(resolve, 3000));
+	  
+	  // Extract the table data
+	  Log.info('Extracting and parsing data...');
+	  const rows = await page.evaluate((LICENSE_NUMBER, STREET_NAME, ACTION, REASON_DETAILED, OBJECTION_TILL, TREE_NUM) => {
+		try {
+		const targetCaption = 'הודעות על אישור כריתה או העתקה של עצים';
+		// Find the table with the caption
+		const captions = Array.from(document.querySelectorAll('caption, h2, h3, h4, div, span'));
+		let targetTable = null;
+		
+		for (const elem of captions) {
+		  if (elem.textContent.includes(targetCaption)) {
+			// Try to find the table (either parent or next sibling)
+			targetTable = elem.closest('table') || elem.nextElementSibling;
+			
+			// If next sibling isn't a table, look further
+			if (targetTable && targetTable.tagName !== 'TABLE') {
+			  targetTable = elem.parentElement.querySelector('table');
+			}
+			
+			if (targetTable && targetTable.tagName === 'TABLE') {
+			  break;
+			}
+		  }
+		}
+		
+		if (!targetTable) {
+		  return { error: 'Table not found' };
+		}
+		// Extract all rows
+		const rawRows = Array.from(targetTable.querySelectorAll('tr'));
+		const result = [];
+		
+		// Parse rows in pairs
+		for (let i = 1; i < rawRows.length; i = i + 2) {
+		  const permit = {};
+		  // Get permit number from title attribute
+		  permit.permitNumber = rawRows[i].getAttribute('title') || '';
+		  
+		  // Parse first row (license number, street, action)
+		  const cells = rawRows[i].querySelectorAll('td');
+		  cells.forEach((elem, idx) => {
+			const val = elem.textContent.trim();
+			if (idx === 0) {
+			  permit[LICENSE_NUMBER] = val;
+			}
+			if (idx === 1) {
+			  permit[STREET_NAME] = val;
+			}
+			if (idx === 2) {
+			  permit[ACTION] = val;
+
+			}
+			if (idx === 3) {
+				permit[TREE_NUM] = val;
+			}
+			if (idx === 4) {
+				permit[REASON_DETAILED] = val;
+			  }
+			  if (idx === 5) {
+				permit[OBJECTION_TILL] = val;
+			  }
+		  });
+		  
+		  // Parse second row (additional details in nested divs)
+		// Parse second row - let's debug the structure
+       // Parse second row - additional details
+	   if (i + 1 < rawRows.length) {
+		const secondRow = rawRows[i + 1];
+		const allH5s = secondRow.querySelectorAll('h5');
+		
+		allH5s.forEach((h5Elem) => {
+		  const key = h5Elem.textContent.trim();
+		  let valueElem = h5Elem.nextElementSibling;
+		  if (!valueElem || valueElem.tagName !== 'SPAN') {
+			valueElem = h5Elem.parentElement.querySelector('span');
+		  }
+		  if (!valueElem || valueElem.tagName !== 'SPAN') {
+			valueElem = h5Elem.closest('div').querySelector('span');
+		  }
+		  
+		  if (valueElem) {
+			const value = valueElem.textContent.trim();
+			permit[key] = value;
+		  }
+		});
+	  }
+		  result.push(permit);
+		  
+		}
+		
+		return result;
+		}
+		catch (error) {
+			Log.error('Error:', error.message);
+			return { error: error.message };
+		}
+	  } ,LICENSE_NUMBER, STREET_NAME, ACTION, REASON_DETAILED, OBJECTION_TILL, TREE_NUM); // Pass constants to the browser context);
+	  
+	  if (rows.error) {
+		Log.error(rows.error);
+	  } else {
+		Log.info('Found', rows.length, 'rows');
+		Log.info(JSON.stringify(rows, null, 2));
+	  }
+	  
+	  return rows;
+	  
+	} catch (error) {
+		Log.error(error.message);
+	} finally {
+	  if (browser) {
+		await browser.close();
+	  }
+	}
+  }
 
 module.exports = { crawlTLVTrees, tlvTreePermit: tlvTreePermit };
