@@ -105,6 +105,9 @@ async function getTreePermitData(rawPermits) {
         Log.info(`Crawl Beer Sheva permit page : ${permitUrl}`);
         const treeHtml = (await axios.get(permitUrl)).data;
         const dom = cheerio.load(treeHtml, { decodeEntities: false });
+        if (!dom) {
+          Log.error('cheerio dom is null');
+        }
 
         dom('.mainContent').find('table').find('tr').each((row, elem) => {
             const keys = [];
