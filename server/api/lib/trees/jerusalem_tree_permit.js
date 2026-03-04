@@ -1,5 +1,5 @@
-const proxy = require('./../proxy');
 const cheerio = require('cheerio');
+const axios = require('axios');
 const TreePermit = require('../../model/tree_permit');
 const {
 	REGIONAL_OFFICE, START_DATE, PERMIT_NUMBER, APPROVER_TITLE, ACTION,
@@ -16,7 +16,7 @@ const JERTreePermit = {
 };
 
 async function parseTreesHtml(url) {
-	const treesHtml = await proxy.get(url);
+	const treesHtml = (await axios.get(url)).data;
 	const dom = cheerio.load(treesHtml, {
 		decodeEntities: false
 	});

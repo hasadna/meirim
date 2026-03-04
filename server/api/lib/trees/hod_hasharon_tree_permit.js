@@ -1,4 +1,4 @@
-const proxy = require('./../proxy');
+const axios = require('axios');
 const cheerio = require('cheerio');
 const Config = require('../../lib/config');
 const TreePermit = require('../../model/tree_permit');
@@ -30,7 +30,7 @@ const hodHashTreePermit = {
 };
 
 async function parseTreesHtml(url) {
-  const treesHtml = await proxy.get(url);
+    const treesHtml = (await axios.get(url)).data;
   const dom = cheerio.load(treesHtml, {
     decodeEntities: false
   });
