@@ -1,7 +1,9 @@
 {
 	"coralogix": {
 		"host": "ingress.cx498.coralogix.com",
-		"metricsEndpoint": "https://ingress.cx498-aws-us-west-2.coralogix.com:443"
+		"metricsEndpoint": "https://ingress.cx498-aws-us-west-2.coralogix.com:443",
+		"apikey": "abc",
+		"serviceName": "test"
 	},
 	"geocoder": {
         "provider": "google",
@@ -40,7 +42,11 @@
 		"cookie": {
 			"secure": true,
 			"maxAge": 31536000000
-		}
+		},
+		"secret": "abcd"
+	},
+	"cypher": {
+		"secret": "abc"
 	},
 	"opengraph": {
 		"locale": "he_IL"
@@ -54,7 +60,7 @@
 		"debug": "logs/debug.log"
 	},
 	"aws": {
-		"useS3ForTreeFiles": true,
+		"useS3ForTreeFiles": false,
 		"treeBucketName": "stg-service-tree-6b3da185"
 	},
 	"trees": {

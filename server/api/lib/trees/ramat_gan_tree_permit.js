@@ -1,4 +1,4 @@
-const proxy = require('./../proxy');
+const axios = require('axios');
 const cheerio = require('cheerio');
 const TreePermit = require('../../model/tree_permit');
 const {
@@ -19,7 +19,7 @@ const HOUR_PERMIT = '09:00';
 const DATE_FORMAT_PERMIT = 'YYYY-MM-DDTHH:mm';
 
 async function parseTreesHtml(url) {
-	const treesHtml = await proxy.get(url);
+	const treesHtml = (await axios.get(url)).data;
 
     const treesHtmlStr = replaceAll(replaceAll(treesHtml.toString(), '<br>', '\n'), '<BR>', '\n');
 

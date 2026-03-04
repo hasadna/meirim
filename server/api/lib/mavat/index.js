@@ -13,7 +13,6 @@ const { clearOldPlanFiles, processPlanInstructionsFile } = require('./planInstru
 const { downloadChallengedFile } = require('../challanged-file');
 const PlanStatusChange = require('../../model/plan_status_change');
 const { formatDate } = require('../date');
-const proxy = require('../proxy');
 
 const mavatSearchPage = 'http://mavat.moin.gov.il/MavatPS/Forms/SV3.aspx?tid=3';
 const newMavatURL = 'https://mavat.iplan.gov.il/rest/api/SV4/1';
@@ -202,7 +201,7 @@ const fetchPlanData = (planId) =>
 				} catch (e) {}
 
 				Log.error({ message: 'Mavat fetch error with puppeteer', error: e, innerHTML, planId});
-				// try {
+					// try {
 				// 	const jsonContent = await proxy.get(`https://mavat.iplan.gov.il/rest/api/SV4/1?mid=${planId}`);
 				// 	Log.info({ message: 'Mavat with proxy response', jsonContent })
 				// 	resolve({ data: JSON.parse(jsonContent) });

@@ -1,6 +1,6 @@
-const proxy = require('./../proxy');
 const database = require('../../service/database');
 const cheerio = require('cheerio');
+const axios = require('axios');
 const Config = require('../../lib/config');
 const TreePermit = require('../../model/tree_permit');
 const moment = require('moment');
@@ -40,7 +40,7 @@ const beerShevaTreePermit = {
 };
 
 async function parseTreesHtml(url) {
-  const treesHtml = await proxy.get(url);
+  const treesHtml = (await axios.get(url)).data;
   const dom = cheerio.load(treesHtml, {
     decodeEntities: false
   });
@@ -103,14 +103,8 @@ async function getTreePermitData(rawPermits) {
         const permitUrl = replaceAll(urlPrefix + raw['url'], "//Lists", "/Lists");
 
         Log.info(`Crawl Beer Sheva permit page : ${permitUrl}`);
-        const treeHtml = await proxy.get(permitUrl, 1000);
-
-        const dom = cheerio.load(treeHtml, {
-            decodeEntities: false
-        });
-        if (!dom) {
-            console.error('cheerio dom is null');
-        }
+        const treeHtml = (await axios.get(permitUrl)).data;
+        const dom = cheerio.load(treeHtml, { decodeEntities: false });
 
         dom('.mainContent').find('table').find('tr').each((row, elem) => {
             const keys = [];
