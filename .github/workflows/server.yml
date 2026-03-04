@@ -3,8 +3,6 @@ env:
   IMAGE: ghcr.io/hasadna/meirim/meirim-server
 on:
   push:
-    branches:
-      - master
     paths:
       - server/**
       - .github/workflows/server.yml
@@ -24,11 +22,12 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
-            ${{ env.IMAGE }}:latest
-          context: server
+            ${{ github.ref == 'refs/heads/master' && format('{0}:latest', env.IMAGE) || '' }}
+          context: "{{defaultContext}}:server"
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache-latest
-          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache-latest,mode=max
-      - uses: hasadna/hasadna-k8s/.github/actions/deploy@master
+          cache-to: ${{ github.ref == 'refs/heads/master' && format('type=registry,ref=${0}:buildcache-latest,mode=max', env.IMAGE) || '' }}
+      - if: github.ref == 'refs/heads/master'
+        uses: hasadna/hasadna-k8s/.github/actions/deploy@master
         with:
           app: meirim
           updates: serverImage=${{ env.IMAGE }}:${{ github.sha }}
