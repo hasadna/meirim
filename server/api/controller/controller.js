@@ -76,7 +76,7 @@ class Controller {
 		}
 		if (options.orderByRaw) {
 			bsQuery = bsQuery.query((qb) =>
-				options.orderByRaw.map((w) => qb.orderBy(w))
+				options.orderByRaw.map((w) => qb.orderByRaw(w))
 			);
 		}
 

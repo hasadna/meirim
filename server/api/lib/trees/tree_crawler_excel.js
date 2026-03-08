@@ -3,13 +3,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const xlsx = require('xlsx');
-const https = require('follow-redirects').https;
-const AbortController = require('abort-controller');
 const TreePermit = require('../../model/tree_permit');
 const Config = require('../../lib/config');
 const { downloadChallengedFile } = require('../challanged-file');
 
-const TIMEOUT_MS = 15000;
 const MORNING = '08:00';
 const EVENING = '20:00';
 
@@ -35,47 +32,23 @@ const {
 } = require('./utils');
 
 
-async function getTreePermitsFromFile(url, pathname, permitType) {
+async function getTreePermitsFromFile(url, pathname, permitType, session = null) {
 	try {
-		const controller = new AbortController();
-		const controllerTimeout = setTimeout(
-			() => { controller.abort(); },
-			TIMEOUT_MS,
-		);
 		Log.info('Fetching trees file... ' + `${url}`);
-		return new Promise(async (resolve, reject) => {
-			try {
-				// use new agent for request to avoid consecutive-request-hanging bug
-				// NOTE: we use https.Agent since all urls are currently https. if a http
-				// url is added there needs to be a condition here to use the correct agent
-				const stream = fs.createWriteStream(pathname);
-				let res = await downloadChallengedFile(url, stream, { signal: controller.signal, agent: new https.Agent() }, https );
+		const stream = fs.createWriteStream(pathname);
+		const res = session
+			? await session.download(url, stream)
+			: await downloadChallengedFile(url, stream);
 
-				if (! res) {
-					// Failed to download - try again. gov.il servers have the tendancy to fail the first time
-					Log.info('Failed to reach gov.il on the first time. try again...')
-					res = await downloadChallengedFile(url, stream, { signal: controller.signal, agent: new https.Agent() }, https );
-				}
-
-				if ( ! res) {
-					Log.error('Couldnt read tree files. exit :(');
-					resolve(null);
-				}
-				const treePermits = await parseTreesXLS(pathname, permitType);
-				resolve(treePermits);
-			}
-			catch (err) {
-				Log.error(`Error fetching file ${url} :  ${err}`);
-				reject(err);
-			}
-			finally {
-				clearTimeout(controllerTimeout);
-			}
-		});
+		if (!res) {
+			Log.error('Couldnt read tree files. exit :(');
+			return null;
+		}
+		return await parseTreesXLS(pathname, permitType);
 	}
 	catch (err) {
-		Log.error(err);
-		return Promise.reject();
+		Log.error(`Error fetching file ${url} :  ${err}`);
+		return null;
 	}
 }
 
@@ -157,10 +130,10 @@ function processPermits(rawTreePermits) {
 	return Object.values(treePermits);
 }
 
-async function crawlTreeExcelByFile(url, permitType) {
+async function crawlTreeExcelByFile(url, permitType, session = null) {
 	try {
 		const { s3filename, localFilename } = generateFilenameByTime(url, localTrees);
-		const treePermits = await getTreePermitsFromFile(url, localFilename, permitType);
+		const treePermits = await getTreePermitsFromFile(url, localFilename, permitType, session);
 		if (useS3) {
 			await uploadToS3(s3filename, bucketName, localFilename);
 		}
