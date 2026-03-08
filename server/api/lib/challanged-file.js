@@ -11,6 +11,7 @@ const DELAY_BETWEEN_REQUESTS_MS = 2000;
 const launchStealthBrowser = async () => {
 	const browser = await puppeteer.launch({
 		headless: true,
+		protocolTimeout: 1200000, // 2 minutes — prevents Target.attachToTarget timeout on long runs
 		args: [
 			'--no-sandbox',
 			'--disable-setuid-sandbox',
@@ -33,48 +34,50 @@ const setupStealthPage = async (browser) => {
 };
 
 /**
- * Downloads a file by triggering an anchor click on the page (so Chrome sends proper
- * navigation headers that Cloudflare accepts) and capturing the result via CDP
- * Browser.setDownloadBehavior before Chrome can show a download dialog.
+ * Downloads a file by triggering an anchor click (so Chrome sends Sec-Fetch-Mode=navigate
+ * which Cloudflare accepts) and capturing the result via a pre-configured CDP client.
  *
- * Why not fetch(): fetch() sends Sec-Fetch-Mode=cors which Cloudflare blocks (403).
- * Why not page.goto(): causes ERR_ABORTED (Chrome aborts navigation for binary files).
- * Anchor click sends Sec-Fetch-Mode=navigate which Cloudflare allows through.
+ * @param {Page} page - Puppeteer page (already on the domain, session established)
+ * @param {CDPSession} client - Reusable CDP session with Browser.setDownloadBehavior already set
+ * @param {string} url - File URL to download
+ * @param {fs.WriteStream} file - Writable stream for the output file
  */
-const downloadWithNavigation = async (page, url, file) => {
-	const client = await page.createCDPSession();
+const downloadWithNavigation = async (page, client, url, file) => {
 	const downloadDir = os.tmpdir();
 
-	await client.send('Browser.setDownloadBehavior', {
-		behavior: 'allowAndName', // saves file as {guid} to avoid filename conflicts
-		downloadPath: downloadDir,
-		eventsEnabled: true
-	});
-
 	const downloadedPathPromise = new Promise((resolve, reject) => {
-		// Fail fast if the download never begins (e.g. still 403)
+		// Fail fast if the server blocks the request and no download begins
 		const startTimeout = setTimeout(
-			() => reject(new Error(`Download did not begin within 20s for ${url} — server may have blocked the request`)),
+			() => {
+				client.off('Browser.downloadWillBegin', onBegin);
+				client.off('Browser.downloadProgress', onProgress);
+				reject(new Error(`Download did not begin within 20s for ${url} — server may have blocked the request`));
+			},
 			20000
 		);
+
 		let guid = null;
 
-		client.on('Browser.downloadWillBegin', (event) => {
+		const onBegin = (event) => {
 			clearTimeout(startTimeout);
 			guid = event.guid;
-			Log.info(`[download] began: guid=${guid}, file=${event.suggestedFilename}, url=${url}`);
-		});
+			Log.info(`[download] began: guid=${guid}, file=${event.suggestedFilename}`);
+			client.off('Browser.downloadWillBegin', onBegin);
+		};
 
-		client.on('Browser.downloadProgress', (event) => {
-			if (guid && event.guid === guid) {
-				Log.info(`[download] progress: ${event.receivedBytes}/${event.totalBytes} state=${event.state}`);
-				if (event.state === 'completed') {
-					resolve(path.join(downloadDir, event.guid));
-				} else if (event.state === 'canceled') {
-					reject(new Error(`Download was canceled for ${url}`));
-				}
+		const onProgress = (event) => {
+			if (!guid || event.guid !== guid) return;
+			if (event.state === 'completed') {
+				client.off('Browser.downloadProgress', onProgress);
+				resolve(path.join(downloadDir, event.guid));
+			} else if (event.state === 'canceled') {
+				client.off('Browser.downloadProgress', onProgress);
+				reject(new Error(`Download was canceled for ${url}`));
 			}
-		});
+		};
+
+		client.on('Browser.downloadWillBegin', onBegin);
+		client.on('Browser.downloadProgress', onProgress);
 	});
 
 	// Anchor click: Chrome sends Sec-Fetch-Mode=navigate (same as a user clicking a link).
@@ -94,13 +97,12 @@ const downloadWithNavigation = async (page, url, file) => {
 	]);
 
 	const content = fs.readFileSync(downloadedPath);
-	fs.unlinkSync(downloadedPath); // cleanup temp file
+	fs.unlinkSync(downloadedPath);
 
 	await new Promise((resolve, reject) => {
 		file.write(content, (err) => { if (err) reject(err); else resolve(); });
 	});
 	await new Promise(resolve => file.close(resolve));
-	await client.detach().catch(() => {});
 
 	Log.info(`downloaded ${url} to ${file.path}`);
 	return true;
@@ -109,7 +111,7 @@ const downloadWithNavigation = async (page, url, file) => {
 /**
  * Creates a reusable download session for multiple files from the same domain.
  * Opens one browser, visits the base URL once to establish Cloudflare cookies,
- * then reuses that page for all subsequent downloads.
+ * creates one CDP session for all downloads (avoids repeated Target.attachToTarget calls).
  *
  * @param {string} baseUrl - Homepage to visit first (establishes session/cookies)
  * @returns {{ download: Function, close: Function }}
@@ -120,21 +122,28 @@ const createDownloadSession = async (baseUrl) => {
 
 	Log.info(`createDownloadSession: establishing session on ${baseUrl}`);
 	await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-	Log.info(`[session] session established. url=${page.url()}`);
+
+	// Create CDP session once and reuse — avoids Target.attachToTarget timeout on long runs
+	const client = await page.createCDPSession();
+	await client.send('Browser.setDownloadBehavior', {
+		behavior: 'allowAndName',
+		downloadPath: os.tmpdir(),
+		eventsEnabled: true
+	});
 
 	let lastRequestTime = Date.now();
 
 	return {
 		download: async (url, file) => {
-			// Throttle requests to avoid rate limiting
 			const elapsed = Date.now() - lastRequestTime;
 			if (elapsed < DELAY_BETWEEN_REQUESTS_MS) {
 				await new Promise(r => setTimeout(r, DELAY_BETWEEN_REQUESTS_MS - elapsed));
 			}
 			lastRequestTime = Date.now();
-			return downloadWithNavigation(page, url, file);
+			return downloadWithNavigation(page, client, url, file);
 		},
 		close: async () => {
+			await client.detach().catch(() => {});
 			await browser.close();
 		}
 	};
@@ -159,7 +168,14 @@ const downloadChallengedFile = async (url, file) => {
 			await page.goto(GOV_IL_BASE, { waitUntil: 'networkidle2', timeout: 30000 });
 		}
 
-		return await downloadWithNavigation(page, url, file);
+		const client = await page.createCDPSession();
+		await client.send('Browser.setDownloadBehavior', {
+			behavior: 'allowAndName',
+			downloadPath: os.tmpdir(),
+			eventsEnabled: true
+		});
+
+		return await downloadWithNavigation(page, client, url, file);
 	} catch (err) {
 		Log.error(`downloadChallengedFile error for ${url}: ${err.message}`);
 		return false;
