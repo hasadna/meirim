@@ -25,6 +25,7 @@ const {
 const { REGIONAL_OFFICE, START_DATE, PERMIT_NUMBER, TOTAL_TREES, GUSH, HELKA, GEOM, PLACE, STREET, TREE_PERMIT_TABLE, STREET_NUMBER } = require('../../model/tree_permit_constants');
 const MORNING = '08:00';
 const { crawlTreeExcelByFile } = require('./tree_crawler_excel');
+const { createDownloadSession, GOV_IL_BASE } = require('../challanged-file');
 const { crawlTLVTrees, tlvTreePermit } = require('./tlv_tree_permit');
 async function saveNewTreePermits(treePermits, maxPermits) {
 	// Tree permits are published for objecctions for a period of 2 weeks. taking a 12 months
@@ -119,22 +120,30 @@ const crawlTrees = async (crawlMethod) => {
 	const crawlMethods = chooseCrawl(crawlMethod);
 
 	for  (const method of crawlMethods) {
-		for  (const url of  method.permitType.urls) {
-			try {
-				if (maxPermits <= 0) {
-					break;
-				}
-				const treePermits = await method.crawler(url, method.permitType);
-				const newTreePermits = await saveNewTreePermits(treePermits, maxPermits);
-				maxPermits = maxPermits - newTreePermits.length;
-				sumPermits = sumPermits + newTreePermits.length;
-			}
-			catch (err) {
-				Log.error(err.message || err);
-				failures++;
-			}
-		}
+		// Create one shared browser session for all gov.il URLs in this permit type
+		// to avoid launching a new browser per file and triggering rate limiting
+		const allGovIL = method.permitType.urls.every(u => u.startsWith(GOV_IL_BASE));
+		const session = allGovIL ? await createDownloadSession(GOV_IL_BASE) : null;
 
+		try {
+			for  (const url of  method.permitType.urls) {
+				try {
+					if (maxPermits <= 0) {
+						break;
+					}
+					const treePermits = await method.crawler(url, method.permitType, session);
+					const newTreePermits = await saveNewTreePermits(treePermits, maxPermits);
+					maxPermits = maxPermits - newTreePermits.length;
+					sumPermits = sumPermits + newTreePermits.length;
+				}
+				catch (err) {
+					Log.error(err.message || err);
+					failures++;
+				}
+			}
+		} finally {
+			if (session) await session.close();
+		}
 	}
 	Log.info(`Done! Total ${sumPermits} new permits`);
 
