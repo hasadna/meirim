@@ -11,15 +11,20 @@ const DOWNLOAD_BEGIN_TIMEOUT_MS = 60000;  // time to wait for download to start
 const DOWNLOAD_COMPLETE_TIMEOUT_MS = 180000; // time to wait for download to finish
 
 const launchStealthBrowser = async () => {
+	const args = [
+		'--no-sandbox',
+		'--disable-setuid-sandbox',
+		'--disable-blink-features=AutomationControlled',
+		'--window-size=1920,1080',
+	]
+	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+	if (proxy) {
+		args.push(`--proxy-server=${proxy}`);
+	}
 	const browser = await puppeteer.launch({
 		headless: true,
 		protocolTimeout: 1200000, // 2 minutes — prevents Target.attachToTarget timeout on long runs
-		args: [
-			'--no-sandbox',
-			'--disable-setuid-sandbox',
-			'--disable-blink-features=AutomationControlled',
-			'--window-size=1920,1080',
-		]
+		args: args
 	});
 	return browser;
 };
