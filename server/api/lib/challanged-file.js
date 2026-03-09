@@ -17,7 +17,7 @@ const launchStealthBrowser = async () => {
 		'--disable-blink-features=AutomationControlled',
 		'--window-size=1920,1080',
 	]
-	const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+	const proxy = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
 	if (proxy) {
 		args.push(`--proxy-server=${proxy}`);
 	}
