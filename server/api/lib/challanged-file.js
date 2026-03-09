@@ -7,6 +7,8 @@ const Log = require('../lib/log');
 const GOV_IL_BASE = 'https://www.gov.il';
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const DELAY_BETWEEN_REQUESTS_MS = 2000;
+const DOWNLOAD_BEGIN_TIMEOUT_MS = 60000;  // time to wait for download to start
+const DOWNLOAD_COMPLETE_TIMEOUT_MS = 180000; // time to wait for download to finish
 
 const launchStealthBrowser = async () => {
 	const browser = await puppeteer.launch({
@@ -51,9 +53,9 @@ const downloadWithNavigation = async (page, client, url, file) => {
 			() => {
 				client.off('Browser.downloadWillBegin', onBegin);
 				client.off('Browser.downloadProgress', onProgress);
-				reject(new Error(`Download did not begin within 20s for ${url} — server may have blocked the request`));
+				reject(new Error(`Download did not begin within ${DOWNLOAD_BEGIN_TIMEOUT_MS / 1000}s for ${url} — server may have blocked the request`));
 			},
-			20000
+			DOWNLOAD_BEGIN_TIMEOUT_MS
 		);
 
 		let guid = null;
@@ -93,7 +95,7 @@ const downloadWithNavigation = async (page, client, url, file) => {
 
 	const downloadedPath = await Promise.race([
 		downloadedPathPromise,
-		new Promise((_, reject) => setTimeout(() => reject(new Error(`Download timed out after 60s for ${url}`)), 60000))
+		new Promise((_, reject) => setTimeout(() => reject(new Error(`Download timed out after ${DOWNLOAD_COMPLETE_TIMEOUT_MS / 1000}s for ${url}`)), DOWNLOAD_COMPLETE_TIMEOUT_MS))
 	]);
 
 	const content = fs.readFileSync(downloadedPath);
@@ -121,7 +123,7 @@ const createDownloadSession = async (baseUrl) => {
 	const page = await setupStealthPage(browser);
 
 	Log.info(`createDownloadSession: establishing session on ${baseUrl}`);
-	await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+	await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
 	// Create CDP session once and reuse — avoids Target.attachToTarget timeout on long runs
 	const client = await page.createCDPSession();
@@ -165,7 +167,7 @@ const downloadChallengedFile = async (url, file) => {
 		const page = await setupStealthPage(browser);
 
 		if (url.startsWith(GOV_IL_BASE)) {
-			await page.goto(GOV_IL_BASE, { waitUntil: 'networkidle2', timeout: 30000 });
+			await page.goto(GOV_IL_BASE, { waitUntil: 'networkidle2', timeout: 60000 });
 		}
 
 		const client = await page.createCDPSession();
