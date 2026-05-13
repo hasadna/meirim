@@ -19,7 +19,10 @@ const launchStealthBrowser = async () => {
 	]
 	const proxy = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
 	if (proxy) {
+		Log.info(`using proxy ${proxy}`);
 		args.push(`--proxy-server=${proxy}`);
+	} else {
+		Log.info('no proxy found');
 	}
 	const browser = await puppeteer.launch({
 		headless: true,

@@ -27,6 +27,7 @@ const MORNING = '08:00';
 const { crawlTreeExcelByFile } = require('./tree_crawler_excel');
 const { createDownloadSession, GOV_IL_BASE } = require('../challanged-file');
 const { crawlTLVTrees, tlvTreePermit } = require('./tlv_tree_permit');
+const { crawlYeelaTreePermit, YeelaTreePermit } = require('./yeela_tree_permit');
 async function saveNewTreePermits(treePermits, maxPermits) {
 	// Tree permits are published for objecctions for a period of 2 weeks. taking a 12 months
 	// buffer should be enough for human to remove those lines from the excel sheet.
@@ -96,6 +97,7 @@ const chooseCrawl = (crawlType) => {
 	const yavne  = { 'crawler': crawlYavneTreesHTML , 'permitType': yavneTreePermit};
 	const tlv  = { 'crawler': crawlTLVTrees , 'permitType': tlvTreePermit};
 	const regional = { 'crawler': crawlTreeExcelByFile, 'permitType': RegionalTreePermit };
+	const yeela = { 'crawler': crawlYeelaTreePermit, 'permitType': YeelaTreePermit };
 
 	const crawlMap = {
 		'yavne': [yavne],
@@ -107,7 +109,8 @@ const chooseCrawl = (crawlType) => {
 		'kkl': [kkl],
 		'regional': [regional],
 		'tlv': [tlv],
-		'all': [tlv, beerSheva,regional, kkl, hodHasharon, haifa, ramatGan, jerusalem, ] // removed yavne for now, as it's buggy
+		'yeela': [yeela],
+		'all': [tlv, beerSheva, yeela, regional, kkl, hodHasharon, haifa, ramatGan, jerusalem] // removed yavne for now, as it's buggy
 	};
 
 	return crawlMap[crawlType] || crawlMap['all'];
@@ -132,9 +135,18 @@ const crawlTrees = async (crawlMethod) => {
 						break;
 					}
 					const treePermits = await method.crawler(url, method.permitType, session);
-					const newTreePermits = await saveNewTreePermits(treePermits, maxPermits);
-					maxPermits = maxPermits - newTreePermits.length;
-					sumPermits = sumPermits + newTreePermits.length;
+					const groups = {};
+					for (const tp of treePermits) {
+						const office = tp.attributes[REGIONAL_OFFICE] || '';
+						if (!groups[office]) groups[office] = [];
+						groups[office].push(tp);
+					}
+					for (const group of Object.values(groups)) {
+						if (maxPermits <= 0) break;
+						const newTreePermits = await saveNewTreePermits(group, maxPermits);
+						maxPermits = maxPermits - newTreePermits.length;
+						sumPermits = sumPermits + newTreePermits.length;
+					}
 				}
 				catch (err) {
 					Log.error(err.message || err);

@@ -34,16 +34,16 @@ class TreePermitController extends Controller {
 
 		const where = {};
 		// First order by days to permit start date for permits that are still applyable for public objection, then all the rest
-		const orderByRaw = [Knex.raw('case when datediff(current_date(), tree_permit.last_date_to_objection) > -1 then datediff(current_date(), tree_permit.last_date_to_objection) else -1 end asc, last_date_to_objection asc, id ')];
+		const orderByRaw = [Knex.raw('case when datediff(current_date(), tree_permit.last_date_to_objection) > 0 then datediff(current_date(), tree_permit.last_date_to_objection) else -1 end asc, last_date_to_objection asc, id ')];
 
 		if (query.PLACE) {
 			where.PLACE = query.PLACE.split(',');
 		}
-		const whereNotIn = { [tpc.PLACE] : tpc.UNSUPPORTED_PLACES };
+		//const whereNotIn = { [tpc.PLACE] : tpc.UNSUPPORTED_PLACES };
 		return super.browse(req, {
 			columns,
 			where,
-			whereNotIn,
+			//whereNotIn,
 			orderByRaw,
 		});
 	}
@@ -98,8 +98,11 @@ class TreePermitController extends Controller {
 		};
 	}
 	place() {
+		// return Knex.raw(
+		// 	`SELECT ${tpc.PLACE}, COUNT(*) as num FROM ${tpc.TREE_PERMIT_TABLE} WHERE ${tpc.PLACE} NOT IN (${tpc.UNSUPPORTED_PLACES.map(p => `'${p}'`).join(',')}) GROUP BY ${tpc.PLACE}`
+		// ).then(results => results[0]);
 		return Knex.raw(
-			`SELECT ${tpc.PLACE}, COUNT(*) as num FROM ${tpc.TREE_PERMIT_TABLE} WHERE ${tpc.PLACE} NOT IN (${tpc.UNSUPPORTED_PLACES.map(p => `'${p}'`).join(',')}) GROUP BY ${tpc.PLACE}`
+			`SELECT ${tpc.PLACE}, COUNT(*) as num FROM ${tpc.TREE_PERMIT_TABLE} GROUP BY ${tpc.PLACE}`
 		).then(results => results[0]);
 	}
 
