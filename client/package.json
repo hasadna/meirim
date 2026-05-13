@@ -82,7 +82,7 @@
         "extends": "react-app"
     },
     "scripts": {
-        "start": " NODE_OPTIONS=--openssl-legacy-provider react-app-rewired start",
+        "start": "react-app-rewired start",
         "build": "NODE_ENV=production react-app-rewired build",
         "build:staging": "react-app-rewired build",
         "api": "node bin/api",
