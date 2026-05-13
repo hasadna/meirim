@@ -110,7 +110,7 @@ const chooseCrawl = (crawlType) => {
 		'regional': [regional],
 		'tlv': [tlv],
 		'yeela': [yeela],
-		'all': [tlv, beerSheva,regional, kkl, hodHasharon, haifa, ramatGan, jerusalem, yeela] // removed yavne for now, as it's buggy
+		'all': [tlv, beerSheva, yeela, regional, kkl, hodHasharon, haifa, ramatGan, jerusalem] // removed yavne for now, as it's buggy
 	};
 
 	return crawlMap[crawlType] || crawlMap['all'];

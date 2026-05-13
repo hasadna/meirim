@@ -143,7 +143,7 @@ const buildPermitsFromRows = (rows, permitType) => {
 		if (!grouped[key]) {
 			const rawPlace = row[permitType[PLACE]];
 			const rawZone = row['אזור'];
-			const place = rawPlace || rawZone || null;
+			const place = rawPlace || rawZone || 'אחר';
 
 			const rawStartDate = row[permitType[START_DATE]];
 			const rawIssueDate = row[permitType[PERMIT_ISSUE_DATE]];
