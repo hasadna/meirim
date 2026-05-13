@@ -117,18 +117,19 @@ describe('Yeela tree permit crawler', function () {
 			expect(permit).to.not.be.undefined;
 		});
 
-		it('TREES_PER_PERMIT aggregates both species correctly', function () {
+		it('TREES_PER_PERMIT groups by action', function () {
 			const tpp = permit.attributes[TREES_PER_PERMIT];
-			expect(tpp).to.have.property('אורן ירושלים');
-			expect(tpp['אורן ירושלים'].cutting).to.equal(3);
-			expect(tpp['אורן ירושלים'].conservation).to.equal(1);
-			expect(tpp).to.have.property('זית');
-			expect(tpp['זית'].transplanting).to.equal(2);
+			expect(tpp).to.have.property('כריתה');
+			expect(tpp['כריתה']['אורן ירושלים']).to.equal(3);
+			expect(tpp).to.have.property('שימור');
+			expect(tpp['שימור']['אורן ירושלים']).to.equal(1);
+			expect(tpp).to.have.property('העתקה');
+			expect(tpp['העתקה']['זית']).to.equal(2);
 		});
 
-		it('TOTAL_TREES sums all species counts', function () {
-			// 3 cutting + 1 conservation + 2 transplanting = 6
-			expect(permit.attributes[TOTAL_TREES]).to.equal(6);
+		it('TOTAL_TREES sums only cutting and transplanting, not conservation', function () {
+			// 3 cutting + 2 transplanting = 5 (1 conservation excluded)
+			expect(permit.attributes[TOTAL_TREES]).to.equal(5);
 		});
 
 		it('PLACE falls back to אזור when ישוב is null', function () {
@@ -173,16 +174,16 @@ describe('Yeela tree permit crawler', function () {
 			expect(permit.attributes[START_DATE]).to.include('2024-03-20');
 		});
 
-		it('TREES_PER_PERMIT aggregates פיקוס and ברוש', function () {
+		it('TREES_PER_PERMIT groups פיקוס and ברוש by action', function () {
 			const tpp = permit.attributes[TREES_PER_PERMIT];
-			expect(tpp['פיקוס'].cutting).to.equal(5);
-			expect(tpp['ברוש'].transplanting).to.equal(3);
-			expect(tpp['ברוש'].conservation).to.equal(2);
+			expect(tpp['כריתה']['פיקוס']).to.equal(5);
+			expect(tpp['העתקה']['ברוש']).to.equal(3);
+			expect(tpp['שימור']['ברוש']).to.equal(2);
 		});
 
-		it('TOTAL_TREES is 10', function () {
-			// 5 cutting + 3 transplanting + 2 conservation = 10
-			expect(permit.attributes[TOTAL_TREES]).to.equal(10);
+		it('TOTAL_TREES sums only cutting and transplanting, not conservation', function () {
+			// 5 cutting + 3 transplanting = 8 (2 conservation excluded)
+			expect(permit.attributes[TOTAL_TREES]).to.equal(8);
 		});
 
 		it('ACTION is כריתה when cutting is present alongside transplanting', function () {

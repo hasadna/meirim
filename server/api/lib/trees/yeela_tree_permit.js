@@ -182,15 +182,21 @@ const buildPermitsFromRows = (rows, permitType) => {
 		}
 
 		const entry = grouped[key];
-		if (!entry.treesPerPermit[treeName]) {
-			entry.treesPerPermit[treeName] = { cutting: 0, transplanting: 0, conservation: 0 };
+		if (cutting > 0) {
+			if (!entry.treesPerPermit['כריתה']) entry.treesPerPermit['כריתה'] = {};
+			entry.treesPerPermit['כריתה'][treeName] = (entry.treesPerPermit['כריתה'][treeName] || 0) + cutting;
+			entry.hasAnyCutting = true;
 		}
-		entry.treesPerPermit[treeName].cutting += cutting;
-		entry.treesPerPermit[treeName].transplanting += transplanting;
-		entry.treesPerPermit[treeName].conservation += conservation;
-		entry.totalTrees += cutting + transplanting + conservation;
-		if (cutting > 0) entry.hasAnyCutting = true;
-		if (transplanting > 0) entry.hasAnyTransplanting = true;
+		if (transplanting > 0) {
+			if (!entry.treesPerPermit['העתקה']) entry.treesPerPermit['העתקה'] = {};
+			entry.treesPerPermit['העתקה'][treeName] = (entry.treesPerPermit['העתקה'][treeName] || 0) + transplanting;
+			entry.hasAnyTransplanting = true;
+		}
+		if (conservation > 0) {
+			if (!entry.treesPerPermit['שימור']) entry.treesPerPermit['שימור'] = {};
+			entry.treesPerPermit['שימור'][treeName] = (entry.treesPerPermit['שימור'][treeName] || 0) + conservation;
+		}
+		entry.totalTrees += cutting + transplanting;
 	}
 
 	return Object.values(grouped).map(entry => {
