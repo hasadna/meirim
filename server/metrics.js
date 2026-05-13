@@ -75,6 +75,7 @@ async function runAndReport({ name, func, timeout = 60 * 60 * 1000 }) {
 		});
 		await new Promise((r) => setTimeout(r, 3000));
 		Log.error('failed to run - ', name, e);
+		Log.error(e.stack);
 		process.exit(1);
 	}
 }
