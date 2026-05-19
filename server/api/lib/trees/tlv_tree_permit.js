@@ -65,7 +65,7 @@ function processRawPermits(rawPermits) {
 					[LAST_DATE_TO_OBJECTION]: last_date_to_objection,
 					[START_DATE]: figureStartDate(null, raw[OBJECTION_TILL], HOUR_PERMIT, DATE_FORMAT_PERMIT, true),
 					[PERSON_REQUEST_NAME]: raw[LICENSE_OWNER],
-					[REASON_DETAILED]: raw[LICENSE_REASON],
+					[REASON_DETAILED]: raw[REASON_DETAILED],
 					[TREES_PER_PERMIT]: treesPerPermit,
 					[TOTAL_TREES]: totalTrees,
 					[TREE_PERMIT_URL]: TREES_TEL_AVIV_URL,

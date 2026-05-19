@@ -24,12 +24,15 @@ const {
 	TREE_NAME,
 	TOTAL_TREES,
 	TREES_PER_PERMIT,
+	REASON_SHORT,
+	TREE_PERMIT_URL,
 } = require('../../model/tree_permit_constants');
 
 const { figureStartDate, formatDate } = require('./utils');
 
 const YEELA_BASE_URL = 'https://yeela-trees.moag.gov.il';
 const EXPORT_URL = `${YEELA_BASE_URL}/api/Fo/FOServiceRequest/exportRecordsToExcel`;
+const YEELA_PERMIT_URL = `${YEELA_BASE_URL}/FoPublic/FoLicence`;
 const EXPORT_BODY = {
 	orderDetails: null,
 	parameters: {
@@ -173,6 +176,8 @@ const buildPermitsFromRows = (rows, permitType) => {
 					[PERSON_REQUEST_NAME]: row[permitType[PERSON_REQUEST_NAME]] || null,
 					[APPROVER_TITLE]: approverTitle,
 					[APPROVER_NAME]: approverName,
+					[REASON_SHORT]: 'בנייה ופיתוח',
+					[TREE_PERMIT_URL] : YEELA_PERMIT_URL
 				},
 				treesPerPermit: {},
 				totalTrees: 0,
