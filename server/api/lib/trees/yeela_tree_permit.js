@@ -2,6 +2,7 @@ const xlsx = require('xlsx');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const moment = require('moment');
 const Log = require('../log');
 const Config = require('../../lib/config');
 const TreePermit = require('../../model/tree_permit');
@@ -25,7 +26,9 @@ const {
 	TOTAL_TREES,
 	TREES_PER_PERMIT,
 	REASON_SHORT,
+	REASON_DETAILED,
 	TREE_PERMIT_URL,
+	SHORT_REASONS
 } = require('../../model/tree_permit_constants');
 
 const { figureStartDate, formatDate } = require('./utils');
@@ -52,8 +55,8 @@ const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 
 exports.YeelaTreePermit = {
 	[REGIONAL_OFFICE]: null,
-	[PERMIT_NUMBER]: 'מספר רשיון',
-	[PERMIT_ISSUE_DATE]: 'מועד פרסום רשיון',
+	[PERMIT_NUMBER]: 'מספר רישיון',
+	[PERMIT_ISSUE_DATE]: 'מועד פרסום רישיון',
 	[START_DATE]: 'תוקף רישיון מ-',
 	[END_DATE]: 'תוקף רישיון עד',
 	[LAST_DATE_TO_OBJECTION]: 'תאריך אחרון להגשת השגה',
@@ -203,6 +206,130 @@ const buildPermitsFromRows = (rows, permitType) => {
 		}
 		entry.totalTrees += cutting + transplanting;
 	}
+	
+		}
+
+
+	return Object.values(grouped).map(entry => {
+		const action = entry.hasAnyCutting ? 'כריתה' : (entry.hasAnyTransplanting ? 'העתקה' : null);
+		const tp = new TreePermit({
+			...entry.core,
+			[ACTION]: action,
+			[TOTAL_TREES]: entry.totalTrees,
+		});
+		tp.attributes[TREES_PER_PERMIT] = entry.treesPerPermit;
+		return tp;
+	});
+
+
+const parseRequestReason = (requestReason) => {
+	if (!requestReason) return { short: null, detailed: null };
+	const matched = SHORT_REASONS.find(r => requestReason.startsWith(r));
+	if (!matched) return { short: null, detailed: requestReason.trim() };
+	const rest = requestReason.slice(matched.length).replace(/^\s*-\s*/, '').trim();
+	return { short: matched, detailed: rest || null };
+};
+
+const isoToPermitDate = (isoStr, hour) => {
+	if (!isoStr) return null;
+	const isoDate = moment(isoStr).format('YYYY-MM-DD');
+	return `${isoDate}T${hour}`;
+};
+
+const fetchAllYeelaPermitsFromApi = async (page) => {
+	const allResults = [];
+	let pageNumber = 1;
+	const pageSize = 100;
+
+	while (true) {
+		const data = await page.evaluate(async (pageNumber, pageSize) => {
+			const r = await fetch('/api/Fo/FOServiceRequest/getFOGridPublicityLicenses', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					orderDetails: null,
+					pageDetails: { pageNumber, pageSize },
+					parameters: { zoneId: null, cityId: null, appealLastDate: null, licenseId: null, licenseStatusId: 3 },
+				}),
+			});
+			return r.json();
+		}, pageNumber, pageSize);
+
+		if (!data.result || data.result.length === 0) break;
+		allResults.push(...data.result);
+		Log.info(`Yeela API: fetched page ${pageNumber}/${data.pagination.totalPages} (${allResults.length}/${data.pagination.totalCount} rows)`);
+		if (pageNumber >= data.pagination.totalPages) break;
+		pageNumber++;
+	}
+
+	return allResults;
+};
+
+const buildPermitsFromApiRows = (rows) => {
+	const grouped = {};
+	for (const row of rows) {
+		const licenseId = String(row.licenseId);
+		const treeName = row.treeName || 'לא צוין סוג העץ';
+		const cutting = Number(row.unproot) || 0;
+		const transplanting = Number(row.copying) || 0;
+		const conservation = Number(row.conservation) || 0;
+
+		if (!grouped[licenseId]) {
+			const detail = (row.expandRows || [])[0] || {};
+			const approverRaw = detail.approvedBy || '';
+			const approverParts = approverRaw.split(' - ');
+			const approverTitle = approverParts[0] || null;
+			const approverName = approverParts[1] || null;
+
+			const issueDate = detail.dateOLicensePublic || row.approvedDate;
+			const startDate = detail.dateOfIssue
+				? isoToPermitDate(detail.dateOfIssue, MORNING)
+				: figureStartDate(issueDate, row.appealLastDate, MORNING, moment.ISO_8601, false);
+			const { short: reasonShort, detailed: reasonDetailed } = parseRequestReason(detail.requestReason);
+
+			grouped[licenseId] = {
+				core: {
+					[REGIONAL_OFFICE]: row.zoneName || null,
+					[PERMIT_NUMBER]: licenseId,
+					[PERMIT_ISSUE_DATE]: isoToPermitDate(issueDate, MORNING),
+					[START_DATE]: startDate,
+					[END_DATE]: isoToPermitDate(detail.licenseValidUntil, EVENING),
+					[LAST_DATE_TO_OBJECTION]: isoToPermitDate(row.appealLastDate, EVENING),
+					[PLACE]: row.cityName || null,
+					[STREET]: detail.street || null,
+					[GUSH]: detail.block ? String(detail.block) : null,
+					[HELKA]: detail.parcel ? String(detail.parcel) : null,
+					[PERSON_REQUEST_NAME]: detail.customerName ? detail.customerName.trim() : null,
+					[APPROVER_TITLE]: approverTitle,
+					[APPROVER_NAME]: approverName,
+					[REASON_SHORT]: reasonShort,
+					[REASON_DETAILED]: reasonDetailed,
+					[TREE_PERMIT_URL]: YEELA_PERMIT_URL,
+				},
+				treesPerPermit: {},
+				totalTrees: 0,
+				hasAnyTransplanting: false,
+				hasAnyCutting: false,
+			};
+		}
+
+		const entry = grouped[licenseId];
+		if (cutting > 0) {
+			if (!entry.treesPerPermit['כריתה']) entry.treesPerPermit['כריתה'] = {};
+			entry.treesPerPermit['כריתה'][treeName] = (entry.treesPerPermit['כריתה'][treeName] || 0) + cutting;
+			entry.hasAnyCutting = true;
+		}
+		if (transplanting > 0) {
+			if (!entry.treesPerPermit['העתקה']) entry.treesPerPermit['העתקה'] = {};
+			entry.treesPerPermit['העתקה'][treeName] = (entry.treesPerPermit['העתקה'][treeName] || 0) + transplanting;
+			entry.hasAnyTransplanting = true;
+		}
+		if (conservation > 0) {
+			if (!entry.treesPerPermit['שימור']) entry.treesPerPermit['שימור'] = {};
+			entry.treesPerPermit['שימור'][treeName] = (entry.treesPerPermit['שימור'][treeName] || 0) + conservation;
+		}
+		entry.totalTrees += cutting + transplanting;
+	}
 
 	return Object.values(grouped).map(entry => {
 		const action = entry.hasAnyCutting ? 'כריתה' : (entry.hasAnyTransplanting ? 'העתקה' : null);
@@ -216,16 +343,33 @@ const buildPermitsFromRows = (rows, permitType) => {
 	});
 };
 
-const crawlYeelaTreePermit = async (_url, permitType) => {
-	const tmpFile = await downloadYeelaXlsx();
+const crawlYeelaTreePermitViaApi = async (_url) => {
+	let browser;
 	try {
-		const workbook = xlsx.readFile(tmpFile);
-		const sheet = workbook.Sheets[SHEET_NAME] || workbook.Sheets[workbook.SheetNames[0]];
-		const rows = xlsx.utils.sheet_to_json(sheet, { raw: false });
-		return buildPermitsFromRows(rows, permitType);
+		browser = await launchStealthBrowser();
+		const page = await browser.newPage();
+		await page.evaluateOnNewDocument(() => {
+			Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+			window.chrome = { runtime: {} };
+		});
+		await page.setUserAgent(USER_AGENT);
+		await page.setExtraHTTPHeaders({ 'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7' });
+
+		Log.info('Yeela: establishing session on ' + Config.get('trees.yeelaUrl'));
+		await page.goto(Config.get('trees.yeelaUrl'), { waitUntil: 'networkidle2' });
+
+		Log.info('Yeela: fetching permits from JSON API');
+		const rows = await fetchAllYeelaPermitsFromApi(page);
+		Log.info(`Yeela: fetched ${rows.length} total tree rows, building permits`);
+
+		return buildPermitsFromApiRows(rows);
 	} finally {
-		try { fs.unlinkSync(tmpFile); } catch (_) {}
+		if (browser) await browser.close();
 	}
+};
+
+const crawlYeelaTreePermit = async (_url, permitType) => {
+	return crawlYeelaTreePermitViaApi(_url);
 };
 
 exports.crawlYeelaTreePermit = crawlYeelaTreePermit;
