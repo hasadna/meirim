@@ -34,15 +34,16 @@ exports.SENT = 'sent';
 exports.GEOM = 'geom';
 exports.URL = 'url';
 
-exports.UNSUPPORTED_PLACES = [
-	// they are supported through yeela system, but only permits of building and development. 
-	// permits through other types, e.g. safety are missing
-	// 'אשדוד',
-	// 'גבעתיים',
-	// 'גבעת שמואל',
-	// 'נתניה',
-	// 'פתח תקווה',
-	// 'ראשון לציון',
-	// 'רחובות',
+exports.SHORT_REASONS = [
+	'בנייה ופיתוח',
+	'סכנה בטיחותית',
+	'אילנות חולים/מנוונים',
+	'נזקים לתשתיות',
+	'סכנה בריאותית',
+	'בטיחות באש',
+	'הכשרה חקלאית',
+	'פינוי פולשים',
+	'עץ מת',
+	'אחר',
 	
 ];
